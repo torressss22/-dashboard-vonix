@@ -1,1 +1,564 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Dashboard Vonix</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--bg:#F5F5F0;--surface:#fff;--surface-alt:#F1EFE8;--text:#2C2C2A;--text-secondary:#5F5E5A;--text-muted:#888780;--border:#D3D1C7;--border-strong:#B4B2A9;--accent:#185FA5;--accent-bg:#E6F1FB;--success:#3B6D11;--success-bg:#EAF3DE;--warning:#854F0B;--warning-bg:#FAEEDA;--danger:#A32D2D;--danger-bg:#FCEBEB}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1a1a1a;--surface:#2C2C2A;--surface-alt:#3a3a37;--text:#F1EFE8;--text-secondary:#B4B2A9;--text-muted:#888780;--border:#444441;--border-strong:#5F5E5A;--accent:#85B7EB;--accent-bg:#0C447C;--success:#C0DD97;--success-bg:#27500A;--warning:#FAC775;--warning-bg:#633806;--danger:#F09595;--danger-bg:#791F1F}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);padding:24px;min-height:100vh;line-height:1.5}
+.container{max-width:1200px;margin:0 auto}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+h1{font-size:22px;font-weight:500}.subtitle{font-size:13px;color:var(--text-secondary);margin-top:4px}
+.header-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn-primary{background:var(--accent);color:white;border:none;border-radius:8px;padding:10px 18px;cursor:pointer;font-size:13px;font-weight:500}
+.btn-primary:hover{opacity:0.9}
+.btn-secondary{background:var(--surface);color:var(--text);border:0.5px solid var(--border-strong);border-radius:8px;padding:10px 18px;cursor:pointer;font-size:13px;font-weight:500}
+.month-nav{display:flex;align-items:center;gap:8px;background:var(--surface);border:0.5px solid var(--border);border-radius:8px;padding:6px 12px}
+.month-nav button{background:none;border:none;cursor:pointer;color:var(--text-secondary);font-size:16px;padding:4px 8px;border-radius:4px}
+.month-nav button:hover{background:var(--surface-alt)}
+.month-nav .month-label{font-size:14px;font-weight:500;min-width:120px;text-align:center}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:20px}
+.stat-card{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:14px 16px}
+.stat-card .label{font-size:10px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px}
+.stat-card .value{font-size:20px;font-weight:500}
+.stat-card .sub{font-size:11px;color:var(--text-secondary);margin-top:4px}
+.stat-card .value.danger{color:var(--danger)}.stat-card .value.success{color:var(--success)}.stat-card .value.warning{color:var(--warning)}
+.calendar{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:16px;margin-bottom:20px}
+.weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:8px}
+.weekdays div{text-align:center;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;padding:4px}
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.day{background:var(--surface-alt);border-radius:8px;padding:8px;min-height:115px;cursor:pointer;transition:transform 0.1s,border-color 0.1s;border:2px solid transparent;display:flex;flex-direction:column;gap:3px}
+.day:hover:not(.empty){border-color:var(--border-strong);transform:translateY(-1px)}
+.day.selected{border-color:var(--accent);background:var(--accent-bg)}
+.day.selected .day-num,.day.selected .day-info,.day.selected .day-meta{color:var(--accent)}
+.day.empty{opacity:0.3;cursor:default}.day.no-data{opacity:0.7}
+.day-num{font-size:13px;font-weight:500;display:flex;justify-content:space-between;align-items:center}
+.day-num .weekend-tag{font-size:9px;color:var(--text-muted);font-weight:400;text-transform:uppercase}
+.day-info{font-size:11px;color:var(--text-secondary);line-height:1.4;font-weight:500}
+.day-meta{font-size:10px;color:var(--text-muted);line-height:1.3}
+.day-acordos{font-size:10px;color:var(--text-muted)}
+.day-empty-hint{font-size:10px;color:var(--text-muted);margin-top:auto}
+.day-progress{height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:2px}
+.day-progress-bar{height:100%;border-radius:2px;transition:width 0.3s}
+.progress-success{background:var(--success)}.progress-warning{background:var(--warning)}.progress-danger{background:var(--danger)}
+.day-status-row{display:flex;gap:3px;margin-top:2px}
+.day-status{height:3px;border-radius:2px;flex:1}
+.status-success{background:var(--success)}.status-warning{background:var(--warning)}.status-danger{background:var(--danger)}
+.legend{display:flex;gap:16px;margin-top:12px;font-size:11px;color:var(--text-secondary);flex-wrap:wrap;align-items:center}
+.legend-item{display:flex;align-items:center;gap:6px}
+.legend-item .swatch{width:14px;height:4px;border-radius:2px}
+.legend-title{font-weight:500;color:var(--text);margin-right:4px}
+.detail-panel{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:20px;animation:slideIn 0.2s ease-out}
+@keyframes slideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.detail-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.detail-header h2{font-size:18px;font-weight:500}
+.close-btn{background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-secondary);padding:4px 8px;border-radius:4px}
+.close-btn:hover{background:var(--surface-alt)}
+.meta-editor{background:var(--surface-alt);border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.meta-editor label{font-size:13px;color:var(--text-secondary);font-weight:500}
+.meta-editor input{background:var(--surface);border:0.5px solid var(--border-strong);border-radius:6px;padding:8px 12px;font-size:14px;color:var(--text);width:140px;font-family:inherit}
+.meta-editor input:focus{outline:none;border-color:var(--accent)}
+.meta-editor button{border-radius:6px;padding:8px 16px;cursor:pointer;font-size:13px;font-weight:500}
+.meta-status{margin-left:auto;font-size:13px;font-weight:500}
+.meta-status.success{color:var(--success)}.meta-status.warning{color:var(--warning)}.meta-status.danger{color:var(--danger)}
+.section-title{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin:20px 0 12px}
+.hour-list{display:flex;flex-direction:column;gap:4px}
+.hour-list-header,.hour-row{display:grid;grid-template-columns:55px 90px 100px 95px 80px;gap:10px;padding:8px 12px;font-size:12px;align-items:center}
+.hour-list-header{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;padding-bottom:4px}
+.hour-row{background:var(--surface-alt);border-radius:6px}
+.hour-row .hour{font-weight:500}.hour-row .val{color:var(--text-secondary)}.hour-row .rate{font-weight:500}
+.rate-success{color:var(--success)}.rate-warning{color:var(--warning)}.rate-danger{color:var(--danger)}
+.hour-scroll{max-height:480px;overflow-y:auto;overflow-x:auto}
+.hint{background:var(--accent-bg);color:var(--accent);border-radius:8px;padding:12px 16px;font-size:13px;margin-bottom:16px}
+.operators-section{background:var(--surface-alt);border-radius:8px;padding:14px 16px;margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.op-metric .label{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px}
+.op-metric .value{font-size:16px;font-weight:500;margin-top:2px}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal{background:var(--surface);border-radius:14px;padding:24px;max-width:640px;width:100%;max-height:90vh;overflow-y:auto}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.modal-header h2{font-size:18px;font-weight:500}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.form-field{display:flex;flex-direction:column;gap:4px}
+.form-field.full{grid-column:1/-1}
+.form-field label{font-size:12px;color:var(--text-secondary);font-weight:500}
+.form-field input,.form-field select{background:var(--surface-alt);border:0.5px solid var(--border-strong);border-radius:6px;padding:8px 10px;font-size:13px;color:var(--text);font-family:inherit}
+.form-field input:focus,.form-field select:focus{outline:none;border-color:var(--accent)}
+.form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
+.form-hint{font-size:11px;color:var(--text-muted);margin-bottom:12px}
+.status-banner{font-size:12px;padding:8px 12px;border-radius:6px;margin-bottom:12px}
+.status-banner.saving{background:var(--accent-bg);color:var(--accent)}
+.status-banner.error{background:var(--danger-bg);color:var(--danger)}
+.status-banner.success{background:var(--success-bg);color:var(--success)}
+.status-banner.warning{background:var(--warning-bg);color:var(--warning)}
+.loading-state{text-align:center;padding:60px 20px;color:var(--text-secondary)}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div><h1>Dashboard Vonix</h1><p class="subtitle">Dados compartilhados entre todos que abrirem este link.</p></div>
+    <div class="header-actions">
+      <div class="month-nav">
+        <button onclick="changeMonth(-1)">‹</button>
+        <span class="month-label" id="monthLabel">—</span>
+        <button onclick="changeMonth(1)">›</button>
+      </div>
+      <button class="btn-primary" onclick="abrirFormulario()">+ Adicionar dados do dia</button>
+      <button class="btn-secondary" onclick="abrirImport()">📂 Importar arquivo Vonix</button>
+      <button class="btn-secondary" onclick="abrirImportOutro()">📂 Importar outro arquivo</button>
+      <button class="btn-secondary" onclick="abrirComparacao()">📊 Comparar meses</button>
+    </div>
+  </div>
+  <div class="hint" id="hint">Clique em "+ Adicionar dados do dia" ou importe um arquivo. Qualquer pessoa com este link verá os mesmos dados.</div>
+  <div id="loadingState" class="loading-state">Carregando dados...</div>
+  <div id="mainContent" style="display:none;">
+    <div class="stats-grid" id="monthStats"></div>
+    <div class="calendar">
+      <div class="weekdays"><div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div></div>
+      <div class="days" id="days"></div>
+      <div class="legend">
+        <span class="legend-title">Meta:</span>
+        <div class="legend-item"><span class="swatch progress-success"></span> Bateu</div>
+        <div class="legend-item"><span class="swatch progress-warning"></span> Perto</div>
+        <div class="legend-item"><span class="swatch progress-danger"></span> Longe</div>
+        <span class="legend-title" style="margin-left:12px;">Abandono:</span>
+        <div class="legend-item"><span class="swatch status-success"></span> ≤3%</div>
+        <div class="legend-item"><span class="swatch status-warning"></span> 3-6%</div>
+        <div class="legend-item"><span class="swatch status-danger"></span> >6%</div>
+      </div>
+    </div>
+    <div id="detailArea"></div>
+  </div>
+</div>
 
+<!-- Modal Adicionar -->
+<div class="modal-overlay" id="modalOverlay" style="display:none;">
+  <div class="modal">
+    <div class="modal-header"><h2>Adicionar dados do dia</h2><button class="close-btn" onclick="fecharFormulario()">✕</button></div>
+    <p class="form-hint">Preencha os campos. Campos vazios não alteram dados existentes.</p>
+    <div id="formStatus"></div>
+    <div class="form-grid">
+      <div class="form-field"><label>Data</label><input type="date" id="fData"></div>
+      <div class="form-field"><label>Hora (opcional)</label><select id="fHora"><option value="">Dia inteiro</option><option>08:00</option><option>09:00</option><option>10:00</option><option>11:00</option><option>12:00</option><option>13:00</option><option>14:00</option><option>15:00</option><option>16:00</option><option>17:00</option><option>18:00</option><option>19:00</option></select></div>
+      <div class="form-field"><label>Discagens</label><input type="number" id="fDiscagens" placeholder="0"></div>
+      <div class="form-field"><label>Alô</label><input type="number" id="fAlo" placeholder="0"></div>
+      <div class="form-field"><label>CPC</label><input type="number" id="fCpc" placeholder="0"></div>
+      <div class="form-field"><label>Acordos</label><input type="number" id="fAcordos" placeholder="0"></div>
+      <div class="form-field"><label>Abandonadas</label><input type="number" id="fAbandono" placeholder="0"></div>
+      <div class="form-field"><label>Valor negociado (R$)</label><input type="number" step="0.01" id="fValor" placeholder="0.00"></div>
+      <div class="form-field"><label>Logues</label><input type="number" id="fLogues" placeholder="0"></div>
+      <div class="form-field"><label>Meta de valor (R$)</label><input type="number" step="0.01" id="fMeta" placeholder="0.00"></div>
+      <div class="form-field full"><label>Tempo Produtivo (HH:MM:SS)</label><input type="text" id="fTempoProdutivo" placeholder="Ex: 100:51:31"></div>
+      <div class="form-field"><label>Acordos COB</label><input type="number" id="fCobAcordos" placeholder="0"></div>
+      <div class="form-field"><label>Valor COB (R$)</label><input type="number" step="0.01" id="fCobValor" placeholder="0.00"></div>
+    </div>
+    <div class="form-actions"><button class="btn-secondary" onclick="fecharFormulario()">Cancelar</button><button class="btn-primary" onclick="salvarDados()">Salvar</button></div>
+  </div>
+</div>
+
+<!-- Modal Importar Vonix -->
+<div class="modal-overlay" id="importOverlay" style="display:none;">
+  <div class="modal">
+    <div class="modal-header"><h2>Importar arquivo Vonix</h2><button class="close-btn" onclick="fecharImport()">✕</button></div>
+    <p class="form-hint">Suba o arquivo .csv ou .xlsx. O sistema reconhece as colunas automaticamente.</p>
+    <div id="importStatus"></div>
+    <div class="form-grid">
+      <div class="form-field"><label>Data (se o arquivo não tiver)</label><input type="date" id="impData"></div>
+      <div class="form-field"><label>Arquivo</label><input type="file" id="impArquivo" accept=".csv,.xlsx,.xls" onchange="previewArquivo()"></div>
+    </div>
+    <div id="importPreview"></div>
+    <div class="form-actions"><button class="btn-secondary" onclick="fecharImport()">Cancelar</button><button class="btn-primary" onclick="importarArquivo()">Importar</button></div>
+  </div>
+</div>
+
+<!-- Modal Importar Outro -->
+<div class="modal-overlay" id="importOutroOverlay" style="display:none;">
+  <div class="modal">
+    <div class="modal-header"><h2>Importar outro arquivo</h2><button class="close-btn" onclick="fecharImportOutro()">✕</button></div>
+    <p class="form-hint">Suba qualquer arquivo .csv ou .xlsx. O sistema tenta reconhecer as colunas.</p>
+    <div id="importOutroStatus"></div>
+    <div class="form-grid">
+      <div class="form-field"><label>Data</label><input type="date" id="impOutroData"></div>
+      <div class="form-field"><label>Arquivo</label><input type="file" id="impOutroArquivo" accept=".csv,.xlsx,.xls" onchange="previewArquivoOutro()"></div>
+      <div class="form-field full"><label>Tipo/Descrição (opcional)</label><input type="text" id="impOutroTipo" placeholder="Ex: relatório do COB"></div>
+    </div>
+    <div id="importOutroPreview"></div>
+    <div class="form-actions"><button class="btn-secondary" onclick="fecharImportOutro()">Cancelar</button><button class="btn-primary" onclick="importarArquivoOutro()">Importar</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="comparacaoOverlay" style="display:none;">
+  <div class="modal" style="max-width: 900px;">
+    <div class="modal-header"><h2>Comparação entre meses</h2><button class="close-btn" onclick="fecharComparacao()">✕</button></div>
+    <div id="comparacaoConteudo"></div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://zgzdfdeunwfjwlewtyce.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_BrzYeE5azOCluYH5BVIshQ_yMwATXrB';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let dadosOperacao = {};
+let mesAtual, anoAtual, diaSelecionado = null;
+const hoje = new Date();
+mesAtual = hoje.getMonth();
+anoAtual = hoje.getFullYear();
+
+// === SUPABASE DATA LAYER ===
+async function carregarDados() {
+  const {data, error} = await sb.from('dias_operacao').select('*');
+  if (error) throw new Error(error.message);
+  dadosOperacao = {};
+  (data||[]).forEach(d => {
+    const key = d.data;
+    dadosOperacao[key] = d;
+  });
+}
+
+async function upsertDia(dataISO, updates) {
+  const existing = dadosOperacao[dataISO];
+  if (existing) {
+    const {error} = await sb.from('dias_operacao').update({...updates, updated_at: new Date().toISOString()}).eq('data', dataISO);
+    if (error) throw new Error(error.message);
+  } else {
+    const {error} = await sb.from('dias_operacao').insert({data: dataISO, ...updates});
+    if (error) throw new Error(error.message);
+  }
+  await carregarDados();
+  render();
+}
+
+// === INIT ===
+async function iniciar() {
+  try {
+    await carregarDados();
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('mainContent').style.display = 'block';
+    render();
+  } catch(e) {
+    document.getElementById('loadingState').innerHTML = 'Erro ao carregar: ' + e.message + '<br><br><button onclick="location.reload()" style="margin-top:8px;background:var(--accent);color:white;border:none;border-radius:6px;padding:8px 16px;cursor:pointer;">Tentar novamente</button>';
+  }
+}
+setTimeout(()=>{const el=document.getElementById('loadingState');if(el&&el.style.display!=='none'&&el.innerHTML.includes('Carregando'))el.innerHTML='Demorou demais. Verifique sua conexão.<br><br><button onclick="location.reload()" style="margin-top:8px;background:var(--accent);color:white;border:none;border-radius:6px;padding:8px 16px;cursor:pointer;">Tentar novamente</button>';},15000);
+
+// === UTILS ===
+function calcTaxaAbandono(alo,ab){const t=alo+ab;return t===0?0:(ab/t)*100;}
+function calcPctAlo(d,a){return d===0?0:(a/d)*100;}
+function calcPctCpc(a,c){return a===0?0:(c/a)*100;}
+function calcConversao(c,a){return c===0?0:(a/c)*100;}
+function statusAbandono(t){if(t<=3)return'status-success';if(t<=6)return'status-warning';return'status-danger';}
+function rateClass(t){if(t<=3)return'rate-success';if(t<=6)return'rate-warning';return'rate-danger';}
+function progressoMeta(at,m){if(!m||m===0)return{pct:0,classe:'status-neutral'};const p=(at/m)*100;if(p>=100)return{pct:100,classe:'progress-success'};if(p>=70)return{pct:p,classe:'progress-warning'};return{pct:p,classe:'progress-danger'};}
+function formatMoeda(v){if(v>=1000)return'R$ '+(v/1000).toFixed(1)+'k';return'R$ '+(v||0).toLocaleString('pt-BR');}
+function formatMoedaCompleta(v){return'R$ '+(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function formatNumero(v){return(v||0).toLocaleString('pt-BR');}
+function normalizaTexto(s){return(s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();}
+function parseNumBR(raw){if(raw===undefined||raw===null||raw==='')return null;let s=raw.toString().trim().replace('%','').replace('R$','').replace(/\s/g,'');if(!s)return null;if(/,\d{1,2}$/.test(s)){s=s.replace(/\./g,'').replace(',','.');}else{s=s.replace(/\./g,'');}const n=parseFloat(s);return isNaN(n)?null:n;}
+function parseDataBR(raw){if(!raw)return null;const s=raw.toString().trim();let m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);if(m){const ano=m[3].length===2?'20'+m[3]:m[3];return`${ano}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;}m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(m)return`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;return null;}
+function parseDuracao(str){if(!str)return 0;const m=str.toString().trim().match(/^(\d{1,3}):(\d{2}):(\d{2})$/);if(!m)return 0;return parseInt(m[1],10)*3600+parseInt(m[2],10)*60+parseInt(m[3],10);}
+function formatDuracao(seg){return`${String(Math.floor(seg/3600)).padStart(2,'0')}:${String(Math.floor((seg%3600)/60)).padStart(2,'0')}:${String(Math.floor(seg%60)).padStart(2,'0')}`;}
+
+// === FORMULÁRIO MANUAL ===
+function abrirFormulario(){document.getElementById('modalOverlay').style.display='flex';document.getElementById('formStatus').innerHTML='';document.getElementById('fData').value=diaSelecionado||new Date().toISOString().split('T')[0];}
+function fecharFormulario(){document.getElementById('modalOverlay').style.display='none';['fDiscagens','fAlo','fCpc','fAcordos','fAbandono','fValor','fLogues','fMeta','fTempoProdutivo','fCobAcordos','fCobValor'].forEach(id=>{document.getElementById(id).value='';});document.getElementById('fHora').value='';carregarDados().then(()=>render());}
+function mostrarStatus(msg,tipo){document.getElementById('formStatus').innerHTML=`<div class="status-banner ${tipo}">${msg}</div>`;}
+async function salvarDados(){
+  const data=document.getElementById('fData').value;
+  if(!data){mostrarStatus('Escolha uma data','error');return;}
+  const hora=document.getElementById('fHora').value;
+  const discagens=parseInt(document.getElementById('fDiscagens').value)||0;
+  const alo=parseInt(document.getElementById('fAlo').value)||0;
+  const cpc=parseInt(document.getElementById('fCpc').value)||0;
+  const acordos=parseInt(document.getElementById('fAcordos').value)||0;
+  const abandono=parseInt(document.getElementById('fAbandono').value)||0;
+  const valor=parseFloat(document.getElementById('fValor').value)||0;
+  const logues=parseInt(document.getElementById('fLogues').value)||0;
+  const meta=parseFloat(document.getElementById('fMeta').value)||0;
+  const tempoProdutivo=document.getElementById('fTempoProdutivo').value||'';
+  const cobAcordos=parseInt(document.getElementById('fCobAcordos').value)||0;
+  const cobValor=parseFloat(document.getElementById('fCobValor').value)||0;
+  mostrarStatus('Salvando...','saving');
+  try{
+    const updates={};
+    if(discagens)updates.discagens=discagens;
+    if(alo)updates.alo=alo;
+    if(cpc)updates.cpc=cpc;
+    if(acordos)updates.acordos=acordos;
+    if(abandono)updates.abandono=abandono;
+    if(valor)updates.valor=valor;
+    if(logues)updates.logues=logues;
+    if(meta)updates.meta=meta;
+    if(tempoProdutivo)updates.tempo_produtivo=tempoProdutivo;
+    if(cobAcordos)updates.cob_acordos=cobAcordos;
+    if(cobValor)updates.cob_valor=cobValor;
+    await upsertDia(data,updates);
+    mostrarStatus('Salvo!','success');
+    setTimeout(()=>{fecharFormulario();},800);
+  }catch(e){mostrarStatus('Erro: '+e.message,'error');}
+}
+
+// === PARSER INTELIGENTE ===
+async function lerArquivoComoLinhas(file){const nome=file.name.toLowerCase();if(nome.endsWith('.xlsx')||nome.endsWith('.xls')){const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:'array',cellDates:true});const sheet=wb.Sheets[wb.SheetNames[0]];return XLSX.utils.sheet_to_json(sheet,{header:1,raw:false,defval:'',dateNF:'yyyy-mm-dd'});}return csvToRows(await file.text());}
+function csvToRows(text){text=text.replace(/^\uFEFF+/,'');const linhas=text.split(/\r\n|\n/).filter(l=>l.trim().length>0);if(!linhas.length)return[];const semi=(linhas[0].match(/;/g)||[]).length;const virgula=(linhas[0].match(/,/g)||[]).length;const d=semi>=virgula?';':',';return linhas.map(l=>l.split(d).map(c=>c.trim().replace(/^"+|"+$/g,'')));}
+
+const SIN={data:['data','date','dia','dt'],hora:['hora','hour','horario','data/hora','faixa horaria','periodo'],discagens:['discagens','discadas','tentativas','chamadas realizadas','total discagens','disc'],alo:['alo','atendidas','chamadas atendidas','answered','ligacoes atendidas'],cpc:['cpc','contato pessoa certa'],acordos:['acordos','agreements','negociacoes fechadas','deals','promessas'],abandono:['abandono','abandonadas','abandoned','chamadas abandonadas'],completadas:['completadas','completed','chamadas completadas','atendimentos'],descartadas:['descartadas','discarded','chamadas descartadas'],valor:['valor','valor negociado','value','montante','total negociado','vlr','receita'],logues:['logues','logins','operadores logados','agentes logados','headcount'],tempoProdutivo:['tempo produtivo','productive time','tempo falando','talk time'],tempoOnline:['tempo online','online time','tempo logado','logged time'],meta:['meta','target','objetivo','goal'],penetracao:['penetracao','penetration','base trabalhada','% base'],agente:['agente','operador','agent','operator','atendente'],status:['status','status da chamada','call status','resultado'],contagem:['contagem','contagem perfilamentos','count','quantidade','qtd'],nomeCategoria:['nome do no na arvore','nome','fila','tabulacao','categoria']};
+
+function findCol(header,metrica){const sins=SIN[metrica]||[];for(let i=0;i<header.length;i++){const h=header[i];if(!h)continue;if(sins.includes(h))return i;for(const s of sins){if(h.includes(s)||s.includes(h))return i;}}return-1;}
+
+function parseArquivoGenerico(rows){
+  if(!rows||rows.length<2)return null;
+  // Pula linhas em branco no início até achar a que tem o cabeçalho de verdade
+  let headerIdx=0;
+  while(headerIdx<rows.length && !rows[headerIdx].some(c=>c!==undefined&&c!==null&&c.toString().trim()!=='')) headerIdx++;
+  if(headerIdx>=rows.length-1) return null;
+  const headerRaw=rows[headerIdx];const header=headerRaw.map(normalizaTexto);
+  const body=rows.slice(headerIdx+1).filter(r=>r.some(c=>c!==undefined&&c!==''));
+  const idx={};const colsMap=[],colsNao=[];
+  for(const m of Object.keys(SIN)){idx[m]=findCol(header,m);if(idx[m]!==-1)colsMap.push(m);}
+  header.forEach((h,i)=>{if(h&&!Object.values(idx).includes(i))colsNao.push(headerRaw[i]||h);});
+
+  // Formato: múltiplos blocos "Data/Dia/Tentativas/Alô/CPC/Acordo" lado a lado (ex: 3 meses na mesma planilha)
+  const dataColsExatas=[];
+  header.forEach((h,i)=>{ if(h==='data') dataColsExatas.push(i); });
+  if(dataColsExatas.length>=2){
+    const pd={};
+    dataColsExatas.forEach((inicio,bi)=>{
+      const fim=bi+1<dataColsExatas.length?dataColsExatas[bi+1]:header.length;
+      const headerBloco=header.slice(inicio,fim);
+      const idxBloco={};
+      for(const m of Object.keys(SIN)) idxBloco[m]=findCol(headerBloco,m);
+      body.forEach(r=>{
+        const rBloco=r.slice(inicio,fim);
+        if(idxBloco.data===-1) return;
+        const di=parseDataBR(rBloco[idxBloco.data]);
+        if(!di) return;
+        const vals={};
+        ['discagens','alo','cpc','acordos','abandono','valor','logues','meta','penetracao'].forEach(k=>{
+          if(idxBloco[k]!==-1){ const v=parseNumBR(rBloco[idxBloco[k]]); if(v!==null) vals[k]=v; }
+        });
+        if(idxBloco.tempoProdutivo!==-1){const raw=rBloco[idxBloco.tempoProdutivo];if(raw&&/\d{1,3}:\d{2}:\d{2}/.test(raw))vals.tempo_produtivo=raw.trim();}
+        pd[di]={...(pd[di]||{}),...vals};
+      });
+    });
+    if(Object.keys(pd).length>0) return {shape:'wide',formato:`Planilha com ${dataColsExatas.length} blocos de meses lado a lado`,porDia:pd,colsMap:['data','discagens/tentativas','alo','cpc','acordos'],colsNao:[],registros:Object.keys(pd).length};
+  }
+
+  if(idx.agente!==-1&&(idx.tempoOnline!==-1||idx.tempoProdutivo!==-1)){
+    const pa=[];let toSeg=0,tpSeg=0,compT=0;
+    body.forEach(r=>{const nome=r[idx.agente];if(!nome||normalizaTexto(nome).startsWith('total'))return;const to=idx.tempoOnline!==-1?r[idx.tempoOnline]:'';const tp=idx.tempoProdutivo!==-1?r[idx.tempoProdutivo]:'';const comp=idx.completadas!==-1?(parseNumBR(r[idx.completadas])||0):0;toSeg+=parseDuracao(to);tpSeg+=parseDuracao(tp);compT+=comp;pa.push({nome,tempoOnline:to,tempoProdutivo:tp,completadas:comp});});
+    if(pa.length>0)return{shape:'agentes',formato:'Relatório de agentes',logues:pa.length,tempoProdutivo:formatDuracao(tpSeg),tempoOnline:formatDuracao(toSeg),colsMap,colsNao,registros:pa.length};
+  }
+  if(idx.nomeCategoria!==-1&&idx.contagem!==-1&&idx.data===-1&&idx.hora===-1){
+    const cats={};let cpcT=0,acT=0;
+    body.forEach(r=>{const nome=(r[idx.nomeCategoria]||'').trim();if(!nome)return;const c=parseNumBR(r[idx.contagem])||0;cats[nome]=c;const n=normalizaTexto(nome);if(n.startsWith('cpc'))cpcT+=c;if(n.includes('acordo')&&!n.includes('acordado'))acT+=c;});
+    if(Object.keys(cats).length>0){let tipo='categorias';const nomes=Object.keys(cats).map(normalizaTexto);if(nomes.some(n=>n.includes('cpc')))tipo='cpc';return{shape:'pizza',formato:`Categorias (${tipo})`,tipo,cpcTotal:cpcT,acordosTotal:acT,colsMap,colsNao,registros:Object.keys(cats).length};}
+  }
+  if(idx.status!==-1&&idx.contagem!==-1){
+    const hIdx=idx.hora!==-1?idx.hora:idx.data;
+    if(hIdx!==-1){const ph={};body.forEach(r=>{const hr=r[hIdx]||'';const m=hr.match(/(\d{1,2}):(\d{2})/);if(!m)return;const hora=`${m[1].padStart(2,'0')}:00`;const st=normalizaTexto(r[idx.status]);const c=parseNumBR(r[idx.contagem])||0;if(!ph[hora])ph[hora]={completadas:0,abandonadas:0,descartadas:0};if(st.includes('completad'))ph[hora].completadas+=c;else if(st.includes('abandonad'))ph[hora].abandonadas+=c;else if(st.includes('descartad'))ph[hora].descartadas+=c;});if(Object.keys(ph).length>0){const tC=Object.values(ph).reduce((s,h)=>s+h.completadas,0);const tA=Object.values(ph).reduce((s,h)=>s+h.abandonadas,0);const tD=Object.values(ph).reduce((s,h)=>s+h.descartadas,0);return{shape:'long',formato:'Gráfico hora a hora',porHora:ph,totC:tC,totA:tA,totD:tD,colsMap,colsNao,registros:Object.keys(ph).length};}}
+  }
+  const mNum=['discagens','alo','cpc','acordos','abandono','completadas','descartadas','valor','logues','meta','penetracao'];
+  const temM=mNum.filter(k=>idx[k]!==-1);
+  if(idx.data!==-1&&temM.length>=1){
+    const pd={};body.forEach(r=>{const di=parseDataBR(r[idx.data]);if(!di)return;const dl=normalizaTexto(r[idx.data]);if(dl.includes('periodo')||dl.includes('total')||dl.includes('ura'))return;if(!pd[di])pd[di]={};const vals={};mNum.forEach(k=>{if(idx[k]!==-1){const v=parseNumBR(r[idx[k]]);if(v!==null)vals[k]=v;}});if(idx.tempoProdutivo!==-1){const raw=r[idx.tempoProdutivo];if(raw&&/\d{1,3}:\d{2}:\d{2}/.test(raw))vals.tempo_produtivo=raw.trim();}if(idx.tempoOnline!==-1){const raw=r[idx.tempoOnline];if(raw&&/\d{1,3}:\d{2}:\d{2}/.test(raw))vals.tempo_online=raw.trim();}Object.assign(pd[di],vals);});
+    if(Object.keys(pd).length>0)return{shape:'wide',formato:'Planilha com Data + métricas',porDia:pd,colsMap,colsNao,registros:Object.keys(pd).length};
+  }
+  return{shape:'desconhecido',formato:'Formato não reconhecido (dados salvos como brutos)',headerRaw,body,colsMap:[],colsNao:headerRaw.filter(h=>h),registros:body.length};
+}
+
+// === IMPORTAÇÃO ===
+function abrirImport(){document.getElementById('importOverlay').style.display='flex';document.getElementById('importStatus').innerHTML='';document.getElementById('impData').value=diaSelecionado||new Date().toISOString().split('T')[0];const p=document.getElementById('importPreview');if(p)p.innerHTML='';}
+function fecharImport(){document.getElementById('importOverlay').style.display='none';document.getElementById('impArquivo').value='';const p=document.getElementById('importPreview');if(p)p.innerHTML='';carregarDados().then(()=>render());}
+function abrirImportOutro(){document.getElementById('importOutroOverlay').style.display='flex';document.getElementById('importOutroStatus').innerHTML='';document.getElementById('impOutroData').value=diaSelecionado||new Date().toISOString().split('T')[0];}
+function fecharImportOutro(){document.getElementById('importOutroOverlay').style.display='none';document.getElementById('impOutroArquivo').value='';carregarDados().then(()=>render());}
+function mostrarImportStatus(msg,tipo){document.getElementById('importStatus').innerHTML=`<div class="status-banner ${tipo}">${msg}</div>`;}
+
+async function previewArquivo(){const fi=document.getElementById('impArquivo');const pv=document.getElementById('importPreview');if(!pv)return;if(!fi.files.length){pv.innerHTML='';return;}try{const rows=await lerArquivoComoLinhas(fi.files[0]);const p=parseArquivoGenerico(rows);if(!p){pv.innerHTML='<div class="status-banner error">Arquivo vazio.</div>';return;}let h=`<div style="background:var(--surface-alt);border-radius:8px;padding:12px;margin-top:8px;font-size:12px;"><div style="font-weight:500;margin-bottom:6px;">Prévia</div><div>Arquivo: ${fi.files[0].name}</div><div>Formato: <strong>${p.formato}</strong></div><div>Registros: ${p.registros}</div>`;if(p.colsMap&&p.colsMap.length)h+=`<div style="color:var(--success);">Reconhecidas: ${p.colsMap.join(', ')}</div>`;if(p.colsNao&&p.colsNao.length)h+=`<div style="color:var(--text-muted);">Não mapeadas: ${p.colsNao.join(', ')}</div>`;h+=`</div>`;pv.innerHTML=h;}catch(e){pv.innerHTML=`<div class="status-banner error">Erro: ${e.message}</div>`;}}
+
+async function previewArquivoOutro(){const fi=document.getElementById('impOutroArquivo');const pv=document.getElementById('importOutroPreview');if(!pv)return;if(!fi.files.length){pv.innerHTML='';return;}try{const rows=await lerArquivoComoLinhas(fi.files[0]);const p=parseArquivoGenerico(rows);if(!p){pv.innerHTML='';return;}let h=`<div style="background:var(--surface-alt);border-radius:8px;padding:12px;margin-top:8px;font-size:12px;"><div style="font-weight:500;margin-bottom:6px;">Prévia</div><div>Formato: <strong>${p.formato}</strong></div><div>Registros: ${p.registros}</div></div>`;pv.innerHTML=h;}catch(e){pv.innerHTML='';}}
+
+async function importarArquivo(){
+  const dataForm=document.getElementById('impData').value;
+  const fi=document.getElementById('impArquivo');
+  if(!fi.files.length){mostrarImportStatus('Escolha um arquivo','error');return;}
+  mostrarImportStatus('Processando...','saving');
+  try{
+    const rows=await lerArquivoComoLinhas(fi.files[0]);
+    const p=parseArquivoGenerico(rows);
+    if(!p){mostrarImportStatus('Arquivo vazio.','error');return;}
+    if(p.shape==='agentes'){if(!dataForm){mostrarImportStatus('Escolha a data.','error');return;}await upsertDia(dataForm,{logues:p.logues,tempo_produtivo:p.tempoProdutivo,tempo_online:p.tempoOnline});mostrarImportStatus(`Importado! ${p.logues} agentes.`,'success');setTimeout(()=>{fecharImport();},1500);return;}
+    if(p.shape==='pizza'){if(!dataForm){mostrarImportStatus('Escolha a data.','error');return;}const u={};if(p.cpcTotal>0)u.cpc=p.cpcTotal;if(p.acordosTotal>0)u.acordos=p.acordosTotal;await upsertDia(dataForm,u);mostrarImportStatus(`Importado! CPC: ${p.cpcTotal}, Acordos: ${p.acordosTotal}.`,'success');setTimeout(()=>{fecharImport();},1500);return;}
+    if(p.shape==='long'){if(!dataForm){mostrarImportStatus('Escolha a data.','error');return;}const existing=dadosOperacao[dataForm];const iv=existing&&existing.imp_vonix?{...existing.imp_vonix}:{};Object.entries(p.porHora).forEach(([h,v])=>{iv[h]=v;});const hi=Object.values(iv);await upsertDia(dataForm,{imp_vonix:iv,imp_completadas:hi.reduce((s,h)=>s+h.completadas,0),imp_abandonadas:hi.reduce((s,h)=>s+h.abandonadas,0),imp_descartadas:hi.reduce((s,h)=>s+h.descartadas,0)});const taxa=p.totC+p.totA>0?((p.totA/(p.totC+p.totA))*100).toFixed(1):'0';mostrarImportStatus(`Importado! ${p.registros} horas. Abandono: ${taxa}%.`,'success');setTimeout(()=>{fecharImport();},1500);return;}
+    if(p.shape==='wide'){const dias=Object.keys(p.porDia);for(const di of dias){const u={...p.porDia[di]};await upsertDia(di,u);}mostrarImportStatus(`Importado! ${dias.length} dia(s). Colunas: ${p.colsMap.join(', ')}.`,'success');setTimeout(()=>{fecharImport();},1500);return;}
+    if(p.shape==='desconhecido'){if(!dataForm){mostrarImportStatus('Escolha a data.','error');return;}await upsertDia(dataForm,{dados_brutos:JSON.stringify({header:p.headerRaw,linhas:p.body.slice(0,50)})});mostrarImportStatus(`Não reconheci colunas, mas salvei os dados brutos. Colunas: ${p.colsNao.join(', ')}.`,'warning');return;}
+  }catch(e){mostrarImportStatus('Erro: '+e.message,'error');}
+}
+async function importarArquivoOutro(){
+  const dataForm=document.getElementById('impOutroData').value;
+  const fi=document.getElementById('impOutroArquivo');
+  if(!fi.files.length){document.getElementById('importOutroStatus').innerHTML='<div class="status-banner error">Escolha um arquivo</div>';return;}
+  document.getElementById('importOutroStatus').innerHTML='<div class="status-banner saving">Processando...</div>';
+  // Redireciona pro mesmo parser
+  document.getElementById('impData').value=dataForm;
+  const dt=new DataTransfer();dt.items.add(fi.files[0]);document.getElementById('impArquivo').files=dt.files;
+  await importarArquivo();
+  fecharImportOutro();
+}
+
+// === RENDER ===
+function changeMonth(delta){mesAtual+=delta;if(mesAtual<0){mesAtual=11;anoAtual--;}if(mesAtual>11){mesAtual=0;anoAtual++;}diaSelecionado=null;render();}
+
+function render(){
+  const meses=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  document.getElementById('monthLabel').textContent=`${meses[mesAtual]} ${anoAtual}`;
+  renderMonthStats();renderCalendar();renderDetail();
+}
+
+function renderMonthStats(){
+  let discagens=0,alo=0,cpc=0,acordos=0,abandono=0,valor=0,meta=0;
+  Object.entries(dadosOperacao).forEach(([data,d])=>{const[ano,mes]=data.split('-').map(Number);if(ano===anoAtual&&(mes-1)===mesAtual){discagens+=d.discagens||0;alo+=d.alo||0;cpc+=d.cpc||0;acordos+=d.acordos||0;abandono+=d.abandono||0;valor+=d.valor||0;meta+=d.meta||0;}});
+  const taxaAb=calcTaxaAbandono(alo,abandono);const pctAlo=calcPctAlo(discagens,alo);const pctCpc=calcPctCpc(alo,cpc);const pctMeta=meta>0?(valor/meta*100):0;const ticketMedio=acordos>0?valor/acordos:0;
+  const abC=(alo+abandono)===0?'':(taxaAb<=3?'success':(taxaAb<=6?'warning':'danger'));const mC=meta===0?'':(pctMeta>=100?'success':(pctMeta>=70?'warning':'danger'));
+  document.getElementById('monthStats').innerHTML=`
+    <div class="stat-card"><div class="label">Valor negociado</div><div class="value">${formatMoeda(valor)}</div><div class="sub">Meta: ${formatMoeda(meta)}</div></div>
+    <div class="stat-card"><div class="label">Meta atingida</div><div class="value ${mC}">${meta>0?pctMeta.toFixed(0)+'%':'—'}</div></div>
+    <div class="stat-card"><div class="label">Acordos</div><div class="value">${formatNumero(acordos)}</div><div class="sub">Ticket: ${formatMoeda(Math.round(ticketMedio))}</div></div>
+    <div class="stat-card"><div class="label">CPC</div><div class="value">${formatNumero(cpc)}</div><div class="sub">${pctCpc.toFixed(1)}% do Alô</div></div>
+    <div class="stat-card"><div class="label">% Alô</div><div class="value">${pctAlo.toFixed(1)}%</div><div class="sub">${formatNumero(alo)} atendidas</div></div>
+    <div class="stat-card"><div class="label">Abandono</div><div class="value ${abC}">${(alo+abandono)>0?taxaAb.toFixed(1)+'%':'—'}</div><div class="sub">${formatNumero(abandono)} chamadas</div></div>`;
+}
+
+function renderCalendar(){
+  const primeiroDia=new Date(anoAtual,mesAtual,1);const ultimoDia=new Date(anoAtual,mesAtual+1,0);const diaSemanaInicio=primeiroDia.getDay();const totalDias=ultimoDia.getDate();
+  let html='';for(let i=0;i<diaSemanaInicio;i++)html+='<div class="day empty"></div>';
+  for(let d=1;d<=totalDias;d++){
+    const chave=`${anoAtual}-${String(mesAtual+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;const dados=dadosOperacao[chave];const meta=dados?dados.meta:0;const diaSemana=new Date(anoAtual,mesAtual,d).getDay();
+    const isSelected=diaSelecionado===chave;const classes=['day'];if(isSelected)classes.push('selected');if(!dados)classes.push('no-data');
+    let info='',progressoBar='',statusBar='';const weekTag=diaSemana===6?'<span class="weekend-tag">sáb</span>':(diaSemana===0?'<span class="weekend-tag">dom</span>':'');
+    if(dados&&(dados.discagens||dados.valor||dados.acordos||dados.imp_vonix||dados.logues||dados.cpc)){
+      const taxa=calcTaxaAbandono(dados.alo,dados.abandono);const prog=progressoMeta(dados.valor,meta);
+      info=`<div class="day-info">${formatMoeda(dados.valor)}</div><div class="day-meta">${meta?`/ ${formatMoeda(meta)}`:'sem meta'}</div><div class="day-acordos">${dados.acordos||0} acordos</div>`;
+      if(meta)progressoBar=`<div class="day-progress"><div class="day-progress-bar ${prog.classe}" style="width:${prog.pct}%;"></div></div>`;
+      if((dados.alo||0)+(dados.abandono||0)>0)statusBar=`<div class="day-status-row"><div class="day-status ${statusAbandono(taxa)}"></div></div>`;
+    }else{info='<div class="day-empty-hint">sem dados</div>';}
+    html+=`<div class="${classes.join(' ')}" onclick="selectDay('${chave}')"><div class="day-num">${d} ${weekTag}</div>${info}${progressoBar}${statusBar}</div>`;
+  }
+  document.getElementById('days').innerHTML=html;
+}
+
+function selectDay(chave){diaSelecionado=chave;document.getElementById('hint').style.display='none';render();setTimeout(()=>{document.getElementById('detailArea').scrollIntoView({behavior:'smooth',block:'start'});},100);}
+function closeDetail(){diaSelecionado=null;render();}
+
+function renderDetail(){
+  const area=document.getElementById('detailArea');
+  if(!diaSelecionado){area.innerHTML='';return;}
+  const dados=dadosOperacao[diaSelecionado];
+  const[ano,mes,dia]=diaSelecionado.split('-').map(Number);const dataObj=new Date(ano,mes-1,dia);
+  const diasSemana=['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
+  const meses=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+  const dataFormatada=`${diasSemana[dataObj.getDay()]}, ${dia} de ${meses[mes-1]}`;
+  if(!dados){area.innerHTML=`<div class="detail-panel"><div class="detail-header"><h2>${dataFormatada}</h2><button class="close-btn" onclick="closeDetail()">✕</button></div><p style="color:var(--text-secondary);font-size:13px;">Nenhum dado nesse dia. Clique em "+ Adicionar dados do dia" ou importe um arquivo.</p></div>`;return;}
+
+  const taxaDia=calcTaxaAbandono(dados.alo,dados.abandono);const pctAloDia=calcPctAlo(dados.discagens,dados.alo);const pctCpcDia=calcPctCpc(dados.alo,dados.cpc);const conversao=calcConversao(dados.cpc,dados.acordos);const ticketMedio=dados.acordos>0?dados.valor/dados.acordos:0;const meta=dados.meta||0;
+  let metaHtml='';if(meta>0){const pctR=(dados.valor/meta*100);let t='',c='';if(pctR>=100){t=`Meta batida! ${pctR.toFixed(0)}%`;c='success';}else if(pctR>=70){t=`Perto: ${pctR.toFixed(0)}%`;c='warning';}else{t=`Longe: ${pctR.toFixed(0)}%`;c='danger';}metaHtml=`<p style="font-size:13px;font-weight:500;margin-top:8px;"><span style="color:var(--${c});">${t}</span></p>`;}
+  const taxaClass=(dados.alo+dados.abandono)===0?'':(taxaDia<=3?'success':(taxaDia<=6?'warning':'danger'));
+
+  // Hora a hora importado do Vonix
+  let impHtml='';
+  if(dados.imp_vonix&&Object.keys(dados.imp_vonix).length>0){
+    const agrupado={};Object.entries(dados.imp_vonix).forEach(([hk,v])=>{const m=hk.match(/^(\d{1,2})/);const horaCheia=m?`${m[1].padStart(2,'0')}:00`:hk;if(!agrupado[horaCheia])agrupado[horaCheia]={completadas:0,abandonadas:0,descartadas:0};agrupado[horaCheia].completadas+=(v.completadas||0);agrupado[horaCheia].abandonadas+=(v.abandonadas||0);agrupado[horaCheia].descartadas+=(v.descartadas||0);});
+    const horasOrd=Object.keys(agrupado).sort();
+    let rows=`<div class="hour-list-header" style="grid-template-columns:55px 90px 100px 95px 80px;"><div>Hora</div><div>Completadas</div><div>Abandonadas</div><div>Descartadas</div><div style="text-align:right;">%Aband.</div></div>`;
+    horasOrd.forEach(hk=>{const h=agrupado[hk];const t=calcTaxaAbandono(h.completadas,h.abandonadas);rows+=`<div class="hour-row" style="grid-template-columns:55px 90px 100px 95px 80px;"><div class="hour">${hk}</div><div class="val">${formatNumero(h.completadas)}</div><div class="val">${formatNumero(h.abandonadas)}</div><div class="val">${formatNumero(h.descartadas)}</div><div class="rate ${rateClass(t)}" style="text-align:right;">${t.toFixed(1)}%</div></div>`;});
+    const taxaImp=calcTaxaAbandono(dados.imp_completadas,dados.imp_abandonadas);const taxaImpC=(dados.imp_completadas+dados.imp_abandonadas)===0?'':rateClass(taxaImp).replace('rate-','');
+    impHtml=`<div class="section-title">Importado do Vonix (Completadas / Abandonadas / Descartadas)</div><div class="stats-grid"><div class="stat-card"><div class="label">Completadas</div><div class="value">${formatNumero(dados.imp_completadas)}</div></div><div class="stat-card"><div class="label">Abandonadas</div><div class="value">${formatNumero(dados.imp_abandonadas)}</div></div><div class="stat-card"><div class="label">Descartadas</div><div class="value">${formatNumero(dados.imp_descartadas)}</div></div><div class="stat-card"><div class="label">Taxa de Abandono</div><div class="value ${taxaImpC}">${taxaImp.toFixed(1)}%</div></div></div><div class="hour-scroll"><div class="hour-list">${rows}</div></div>`;
+  }
+
+  // COB
+  let cobHtml='';
+  if(dados.cob_acordos||dados.cob_valor){const botAc=Math.max(0,(dados.cob_acordos||0)-(dados.acordos||0));const botVal=Math.max(0,(dados.cob_valor||0)-(dados.valor||0));cobHtml=`<div class="section-title">Vonix vs Bot vs COB (total)</div><div class="stats-grid"><div class="stat-card"><div class="label">Vonix</div><div class="value">${dados.acordos||0} acordos</div><div class="sub">${formatMoedaCompleta(dados.valor||0)}</div></div><div class="stat-card"><div class="label">Bot (calculado)</div><div class="value">${botAc} acordos</div><div class="sub">${formatMoedaCompleta(botVal)}</div></div><div class="stat-card"><div class="label">COB (total)</div><div class="value">${dados.cob_acordos||0} acordos</div><div class="sub">${formatMoedaCompleta(dados.cob_valor||0)}</div></div></div><p style="font-size:11px;color:var(--text-muted);">Bot = COB total - Vonix</p>`;}
+
+  // Produtividade
+  let prodHtml='';
+  if(dados.logues){prodHtml=`<div class="section-title">Produtividade da equipe</div><div class="operators-section"><div class="op-metric"><div class="label">Logues</div><div class="value">${dados.logues}</div></div><div class="op-metric"><div class="label">Tempo Produtivo</div><div class="value">${dados.tempo_produtivo||'-'}</div></div>${dados.tempo_online?`<div class="op-metric"><div class="label">Tempo Online</div><div class="value">${dados.tempo_online}</div></div>`:''}<div class="op-metric"><div class="label">Acordos/operador</div><div class="value">${((dados.acordos||0)/dados.logues).toFixed(1)}</div></div><div class="op-metric"><div class="label">Valor/operador</div><div class="value">${formatMoeda(Math.round((dados.valor||0)/dados.logues))}</div></div></div>`;}
+
+  area.innerHTML=`<div class="detail-panel"><div class="detail-header"><div><h2>${dataFormatada}</h2></div><button class="close-btn" onclick="closeDetail()">✕</button></div>${metaHtml}<div class="section-title">Resultado do dia</div><div class="stats-grid"><div class="stat-card"><div class="label">Valor negociado</div><div class="value">${formatMoedaCompleta(dados.valor||0)}</div>${meta>0?`<div class="sub">Meta: ${formatMoedaCompleta(meta)}</div>`:''}</div><div class="stat-card"><div class="label">Acordos</div><div class="value">${dados.acordos||0}</div><div class="sub">Ticket: ${formatMoedaCompleta(ticketMedio)}</div></div><div class="stat-card"><div class="label">Conversão CPC→Acordo</div><div class="value">${conversao.toFixed(1)}%</div></div></div><div class="section-title">Funil de contato</div><div class="stats-grid"><div class="stat-card"><div class="label">Discagens</div><div class="value">${formatNumero(dados.discagens)}</div></div><div class="stat-card"><div class="label">Alô</div><div class="value">${formatNumero(dados.alo)}</div><div class="sub">${pctAloDia.toFixed(1)}% das discagens</div></div><div class="stat-card"><div class="label">CPC</div><div class="value">${formatNumero(dados.cpc)}</div><div class="sub">${pctCpcDia.toFixed(1)}% do Alô</div></div><div class="stat-card"><div class="label">Abandono</div><div class="value ${taxaClass}">${(dados.alo+dados.abandono)>0?taxaDia.toFixed(1)+'%':'—'}</div><div class="sub">${formatNumero(dados.abandono)} chamadas</div></div></div>${impHtml}${cobHtml}${prodHtml}</div>`;
+}
+
+// === COMPARAÇÃO MENSAL ===
+function abrirComparacao(){
+  document.getElementById('comparacaoOverlay').style.display='flex';
+  renderComparacao();
+}
+function fecharComparacao(){
+  document.getElementById('comparacaoOverlay').style.display='none';
+}
+function renderComparacao(){
+  const porMes={};
+  Object.entries(dadosOperacao).forEach(([data,d])=>{
+    const ym=data.slice(0,7); // "2026-09"
+    if(!porMes[ym]) porMes[ym]={discagens:0,alo:0,cpc:0,acordos:0,abandono:0,valor:0,dias:0};
+    porMes[ym].discagens+=d.discagens||0;
+    porMes[ym].alo+=d.alo||0;
+    porMes[ym].cpc+=d.cpc||0;
+    porMes[ym].acordos+=d.acordos||0;
+    porMes[ym].abandono+=d.abandono||0;
+    porMes[ym].valor+=d.valor||0;
+    porMes[ym].dias+=1;
+  });
+  const meses=Object.keys(porMes).sort();
+  const nomesMeses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const conteudo=document.getElementById('comparacaoConteudo');
+  if(meses.length===0){
+    conteudo.innerHTML='<p style="color:var(--text-secondary);font-size:13px;">Ainda não há dados suficientes pra comparar meses.</p>';
+    return;
+  }
+  let html=`<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead><tr style="border-bottom:1px solid var(--border);">
+      <th style="text-align:left;padding:8px;color:var(--text-muted);font-weight:500;">Mês</th>
+      <th style="text-align:right;padding:8px;color:var(--text-muted);font-weight:500;">Discagens</th>
+      <th style="text-align:right;padding:8px;color:var(--text-muted);font-weight:500;">Alô</th>
+      <th style="text-align:right;padding:8px;color:var(--text-muted);font-weight:500;">CPC</th>
+      <th style="text-align:right;padding:8px;color:var(--text-muted);font-weight:500;">Acordos</th>
+      <th style="text-align:right;padding:8px;color:var(--text-muted);font-weight:500;">%Alô</th>
+      <th style="text-align:right;padding:8px;color:var(--text-muted);font-weight:500;">%CPC</th>
+      <th style="text-align:right;padding:8px;color:var(--text-muted);font-weight:500;">%Acordo</th>
+      <th style="text-align:right;padding:8px;color:var(--text-muted);font-weight:500;">Valor</th>
+      <th style="text-align:right;padding:8px;color:var(--text-muted);font-weight:500;">Abandono</th>
+    </tr></thead><tbody>`;
+  meses.forEach(ym=>{
+    const m=porMes[ym];
+    const [ano,mes]=ym.split('-');
+    const label=`${nomesMeses[parseInt(mes)-1]}/${ano.slice(2)}`;
+    const pctAlo=m.discagens>0?(m.alo/m.discagens*100):0;
+    const pctCpc=m.alo>0?(m.cpc/m.alo*100):0;
+    const pctAcordo=m.cpc>0?(m.acordos/m.cpc*100):0;
+    const taxaAb=(m.alo+m.abandono)>0?(m.abandono/(m.alo+m.abandono)*100):0;
+    html+=`<tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px;font-weight:500;">${label}</td>
+      <td style="text-align:right;padding:8px;">${formatNumero(m.discagens)}</td>
+      <td style="text-align:right;padding:8px;">${formatNumero(m.alo)}</td>
+      <td style="text-align:right;padding:8px;">${formatNumero(m.cpc)}</td>
+      <td style="text-align:right;padding:8px;">${formatNumero(m.acordos)}</td>
+      <td style="text-align:right;padding:8px;">${pctAlo.toFixed(1)}%</td>
+      <td style="text-align:right;padding:8px;">${pctCpc.toFixed(1)}%</td>
+      <td style="text-align:right;padding:8px;">${pctAcordo.toFixed(1)}%</td>
+      <td style="text-align:right;padding:8px;">${formatMoeda(m.valor)}</td>
+      <td style="text-align:right;padding:8px;" class="${rateClass(taxaAb)}">${taxaAb.toFixed(1)}%</td>
+    </tr>`;
+  });
+  html+='</tbody></table></div>';
+  html+='<p style="font-size:11px;color:var(--text-muted);margin-top:12px;">Calculado automaticamente a partir dos dias importados/lançados em cada mês.</p>';
+  conteudo.innerHTML=html;
+}
+
+iniciar();
+</script>
+</body>
+</html>
